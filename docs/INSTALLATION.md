@@ -1,7 +1,8 @@
 # Build and installation
 
-The repository contains OpenWrt package sources. Prebuilt release artifacts
-will be published after final validation.
+The repository contains OpenWrt package sources. Prebuilt packages for
+[v1.0.0](https://github.com/RzandAl/openwrt-wi-fi-qr/releases/tag/v1.0.0)
+are published with a `SHA256SUMS` file.
 
 ## Requirements
 
@@ -42,6 +43,19 @@ the selected SDK target.
    ```
 
 The APKs are written below `bin/packages/*/base/`.
+
+## Download a release
+
+Download both APKs and `SHA256SUMS` from the
+[v1.0.0 release](https://github.com/RzandAl/openwrt-wi-fi-qr/releases/tag/v1.0.0),
+then verify them before copying anything to the router:
+
+```sh
+sha256sum -c SHA256SUMS
+```
+
+The release APKs are intentionally unsigned. A successful checksum verification
+is required before installing them with `--allow-untrusted`.
 
 ## Copy to the router
 
