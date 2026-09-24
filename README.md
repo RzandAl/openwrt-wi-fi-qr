@@ -78,8 +78,17 @@ modal.
 
 ![Large Wi-Fi QR preview in a native LuCI modal](docs/screenshots/luci-qr-modal.png)
 
-Prebuilt release packages will be published after final validation. Until
-then, build the APKs from the package sources in this repository.
+## Release packages
+
+Prebuilt packages for [v1.0.0](https://github.com/RzandAl/openwrt-wi-fi-qr/releases/tag/v1.0.0):
+
+- [`wi-fi-qr-1.0.0-r1.apk`](https://github.com/RzandAl/openwrt-wi-fi-qr/releases/download/v1.0.0/wi-fi-qr-1.0.0-r1.apk)
+- [`luci-app-wi-fi-qr-1.0.0-r1.apk`](https://github.com/RzandAl/openwrt-wi-fi-qr/releases/download/v1.0.0/luci-app-wi-fi-qr-1.0.0-r1.apk)
+- [`SHA256SUMS`](https://github.com/RzandAl/openwrt-wi-fi-qr/releases/download/v1.0.0/SHA256SUMS)
+
+The release APKs are intentionally unsigned. Verify `SHA256SUMS` before
+installing them with `apk add --allow-untrusted`; see
+[INSTALLATION.md](docs/INSTALLATION.md) for the complete procedure.
 
 ## Documentation
 
