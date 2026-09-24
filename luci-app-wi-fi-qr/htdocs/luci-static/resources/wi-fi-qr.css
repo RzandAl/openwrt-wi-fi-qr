@@ -1,0 +1,121 @@
+/* Keep LuCI's modal behavior while presenting the QR as a compact card. */
+#modal_overlay > .modal.wifi-qr-modal {
+	box-sizing: content-box;
+	width: 256px;
+	min-width: 0;
+	min-height: 0;
+	max-width: 90vw;
+	padding: 2px !important;
+	background: #fff;
+}
+
+.wifi-qr-modal-content {
+	display: flex;
+	justify-content: center;
+	flex-basis: auto !important;
+	margin: 0 !important;
+	padding: 0;
+	line-height: 0 !important;
+}
+
+.wifi-qr-modal-actions {
+	display: none !important;
+}
+
+.wifi-qr-img {
+	display: block;
+	margin: 0;
+	background: transparent;
+	image-rendering: pixelated;
+}
+
+.wifi-qr-img-large {
+	width: 256px;
+	height: 256px;
+	max-width: 90vw;
+	max-height: 90vh;
+}
+
+.wifi-qr-img-small {
+	padding: 3px;
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+	background-color: #fff;
+}
+
+.wifi-qr-img-medium {
+	width: 100%;
+	height: 100%;
+	padding: 3px;
+	box-sizing: border-box;
+	background-color: #fff;
+}
+
+/* Reuse LuCI's .btn border, hover and keyboard-focus treatment. */
+.wifi-qr-link {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	line-height: 0;
+	overflow: hidden;
+	padding: 0;
+	vertical-align: middle;
+	white-space: normal;
+}
+
+/*
+ * Status widgets are recreated during LuCI polling. Paint a replacement in
+ * its current hover state before restoring the theme's normal transition.
+ */
+.wifi-qr-link.wifi-qr-link-initial {
+	transition: none;
+}
+
+.wifi-qr-link[hidden] {
+	display: none !important;
+}
+
+.wifi-qr-link-small {
+	width: 30px !important;
+	height: 30px;
+	margin-top: -1px;
+}
+
+.wifi-qr-link-medium {
+	width: 64px !important;
+	height: 64px;
+}
+
+/*
+ * The page marker exists before a modal can open, so a newly inserted stock QR
+ * is hidden on its first CSS frame. JavaScript explicitly exempts a committed
+ * network when the custom backend is unavailable.
+ */
+html.wifi-qr-stock-managed .cbi-value[data-name="_qrops"]:not(.wifi-qr-stock-fallback),
+.cbi-value[data-name="_qrops"].wifi-qr-stock-hidden {
+	display: none !important;
+}
+
+/* Layout inside LuCI wireless tables and status cards. */
+.wifi-qr-wrap {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 1em;
+}
+
+.wifi-qr-icon-wrap {
+	display: inline-flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 2px;
+	margin-right: 4px;
+}
+
+/* Preserve QR contrast under LuCI's dark theme image filters. */
+html[data-darkmode="true"] .wifi-qr-img {
+	opacity: 1;
+	filter: none;
+}
