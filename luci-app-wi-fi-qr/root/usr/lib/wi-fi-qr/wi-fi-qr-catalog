@@ -1,0 +1,39 @@
+#!/bin/sh
+set -eu
+
+# Emit committed UCI interface indexes and their canonical QR tokens. The
+# RPCd plugin joins these safe fields with section names and SSIDs itself.
+
+core="${WIFI_QR_CORE:-/usr/lib/wi-fi-qr/wi-fi-qr.sh}"
+
+if [ ! -r "$core" ]; then
+  echo "wi-fi-qr-catalog: core library not found." >&2
+  exit 1
+fi
+
+. "$core"
+
+command -v uci >/dev/null 2>&1 || {
+  echo "wi-fi-qr-catalog: missing dependency: uci." >&2
+  exit 1
+}
+
+wifi_qr_build_groups
+
+i=0
+while uci -q show "wireless.@wifi-iface[$i]" >/dev/null 2>&1; do
+  gid="$(get_var "iface_group_$i")"
+
+  if [ -n "$gid" ]; then
+    token="$(wifi_qr_group_token "$gid")" || {
+      echo "wi-fi-qr-catalog: invalid Wi-Fi group." >&2
+      exit 1
+    }
+
+    printf '%s\t%s\n' "$i" "$token"
+  fi
+
+  i=$((i+1))
+done
+
+exit 0

@@ -1,0 +1,101 @@
+#!/bin/sh
+set -eu
+
+# Internal renderer for authenticated RPCd calls. stdout contains SVG only.
+
+core="${WIFI_QR_CORE:-/usr/lib/wi-fi-qr/wi-fi-qr.sh}"
+
+if [ ! -r "$core" ]; then
+  echo "wi-fi-qr-render: core library not found." >&2
+  exit 1
+fi
+
+. "$core"
+
+token="${1-}"
+
+# Accept one canonical basename only; paths and query syntax are forbidden.
+if [ "$#" -ne 1 ] || [ -z "$token" ] || [ "${#token}" -gt 256 ]; then
+  echo "wi-fi-qr-render: invalid token." >&2
+  exit 2
+fi
+
+command -v qrencode >/dev/null 2>&1 || {
+  echo "wi-fi-qr-render: missing dependency: qrencode." >&2
+  exit 1
+}
+
+command -v uci >/dev/null 2>&1 || {
+  echo "wi-fi-qr-render: missing dependency: uci." >&2
+  exit 1
+}
+
+case "$token" in
+  */*|*\?*|*\#*|*\&*|*\=*)
+    echo "wi-fi-qr-render: invalid token." >&2
+    exit 2
+    ;;
+  *.svg)
+    ;;
+  *)
+    echo "wi-fi-qr-render: invalid token." >&2
+    exit 2
+    ;;
+esac
+
+if ! wifi_qr_parse_token "$token" ||
+   [ "$WIFI_QR_TOKEN_BASENAME.svg" != "$token" ]; then
+  echo "wi-fi-qr-render: invalid token." >&2
+  exit 2
+fi
+
+case "$WIFI_QR_TOKEN_BAND_TAG" in
+  ""|2.4GHz|5GHz|6GHz|2.4-5GHz|2.4-6GHz|5-6GHz|2.4-5-6GHz)
+    ;;
+  *)
+    echo "wi-fi-qr-render: invalid band tag." >&2
+    exit 2
+    ;;
+esac
+
+case "$WIFI_QR_TOKEN_SSID_SAFE" in
+  ""|*[!A-Za-z0-9._-]*)
+    echo "wi-fi-qr-render: invalid SSID token." >&2
+    exit 2
+    ;;
+esac
+
+wifi_qr_build_groups
+
+gid="$(get_var "iface_group_$WIFI_QR_TOKEN_ID")"
+[ -n "$gid" ] || {
+  echo "wi-fi-qr-render: Wi-Fi network not found." >&2
+  exit 3
+}
+
+ssid="$(get_var "group_ssid_$gid")"
+key="$(get_var "group_key_$gid")"
+enc="$(get_var "group_enc_$gid")"
+hidden="$(get_var "group_hidden_$gid")"
+bands="$(get_var "group_bands_$gid")"
+canonical_token="$(wifi_qr_group_token "$gid")" || {
+  echo "wi-fi-qr-render: Wi-Fi network not found." >&2
+  exit 3
+}
+
+# Reject aliases for the same network. Every token component must match the
+# current canonical UCI group before a password-bearing QR is rendered.
+if [ -z "$ssid" ] ||
+   [ "$canonical_token" != "$token" ]; then
+  echo "wi-fi-qr-render: Wi-Fi network not found." >&2
+  exit 3
+fi
+
+band_label="$(build_band_label "$bands")"
+
+if ! gen_wifi_qr_svg "$ssid" "$key" "$enc" "$band_label" "$hidden"; then
+  echo "wi-fi-qr-render: failed to generate Wi-Fi QR code." >&2
+  exit 1
+fi
+
+exit 0

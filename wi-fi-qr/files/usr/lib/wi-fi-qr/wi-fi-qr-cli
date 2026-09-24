@@ -1,0 +1,417 @@
+#!/bin/sh
+# Command-line interface for generating, listing, and deleting Wi-Fi QR SVGs.
+
+core="${WIFI_QR_CORE:-/usr/lib/wi-fi-qr/wi-fi-qr.sh}"
+
+if [ ! -r "$core" ]; then
+  echo "wi-fi-qr-cli: core library not found." >&2
+  exit 1
+fi
+
+. "$core"
+
+cmd="$1"
+
+usage() {
+  echo "wi-fi-qr: usage:" >&2
+  echo "  wi-fi-qr --gen   # generate Wi-Fi QR codes" >&2
+  echo "  wi-fi-qr --del   # delete all generated Wi-Fi QR codes" >&2
+  echo "  wi-fi-qr --list  # show table of existing Wi-Fi QR codes" >&2
+  exit 1
+}
+
+case "$cmd" in
+  --gen|--del|--list)
+    ;;
+  *)
+    usage
+    ;;
+esac
+
+need_qrencode=0
+need_uci=0
+
+case "$cmd" in
+  --gen)
+    need_qrencode=1
+    need_uci=1
+    ;;
+  --list)
+    need_uci=1
+    ;;
+esac
+
+missing_deps=""
+
+if [ "$need_qrencode" -eq 1 ] && ! command -v qrencode >/dev/null 2>&1; then
+  missing_deps="qrencode"
+fi
+
+if [ "$need_uci" -eq 1 ] && ! command -v uci >/dev/null 2>&1; then
+  if [ -n "$missing_deps" ]; then
+    missing_deps="$missing_deps, uci"
+  else
+    missing_deps="uci"
+  fi
+fi
+
+if [ -n "$missing_deps" ]; then
+  case "$missing_deps" in
+    *,*)
+      echo "wi-fi-qr-cli: missing dependencies: $missing_deps (install the corresponding packages)." >&2
+      ;;
+    *)
+      echo "wi-fi-qr-cli: missing dependency: $missing_deps (install the corresponding package)." >&2
+      ;;
+  esac
+  exit 1
+fi
+
+print_table_separator() {
+  if [ -n "$base_url" ]; then
+    printf '%-32s %-16s %-10s %-48s %s\n' \
+      "--------------------------------" "----------------" "----------" "------------------------------------------------" "------------------------------------------------"
+  else
+    printf '%-32s %-16s %-10s %-48s\n' \
+      "--------------------------------" "----------------" "----------" "------------------------------------------------"
+  fi
+}
+
+print_table_header() {
+  echo ""
+  if [ -n "$base_url" ]; then
+    printf '%-32s %-16s %-10s %-48s %s\n' \
+      "Wi-Fi SSID" "Radio" "QR type" "SVG" "URL"
+  else
+    printf '%-32s %-16s %-10s %-48s\n' \
+      "Wi-Fi SSID" "Radio" "QR type" "SVG"
+  fi
+  print_table_separator
+}
+
+print_table_footer() {
+  print_table_separator
+}
+
+set -e
+
+outdir="${WIFI_QR_OUTDIR:-/www/wi-fi-qr}"
+
+case "$outdir" in
+  /)
+    echo "wi-fi-qr-cli: refusing to use '/' as the output directory." >&2
+    exit 1
+    ;;
+  /*)
+    ;;
+  *)
+    echo "wi-fi-qr-cli: output directory must be an absolute path." >&2
+    exit 1
+    ;;
+esac
+
+stage_dir=""
+stale_stage_removed=0
+
+# Remove QR files left in staging directories by an interrupted run.
+# Unknown files are preserved and therefore keep their directory in place.
+cleanup_stale_stages() {
+  local stale_dir staged_file removed_here
+
+  for stale_dir in "$outdir"/.wi-fi-qr-stage.*; do
+    [ -d "$stale_dir" ] || continue
+
+    removed_here=0
+    for staged_file in "$stale_dir"/id*_*.svg; do
+      [ -e "$staged_file" ] || break
+      if rm -f "$staged_file"; then
+        removed_here=1
+        stale_stage_removed=1
+      fi
+    done
+
+    if rmdir "$stale_dir" 2>/dev/null; then
+      [ "$removed_here" -eq 1 ] || stale_stage_removed=1
+    fi
+  done
+}
+
+# Clean interrupted-run artifacts without touching a previously published set.
+cleanup_tmp() {
+  rm -f "$outdir"/id*_*.svg.tmp 2>/dev/null
+
+  if [ -n "$stage_dir" ] && [ -d "$stage_dir" ]; then
+    rm -f "$stage_dir"/id*_*.svg 2>/dev/null
+    rmdir "$stage_dir" 2>/dev/null || :
+  fi
+}
+
+trap 'cleanup_tmp' EXIT
+
+cleanup_stale_stages
+
+if [ "$cmd" = "--del" ]; then
+  deleted_main=0
+  deleted_tmp="$stale_stage_removed"
+  deleted_count=0
+  deleted_list=""
+
+  for f in "$outdir"/id*_*.svg; do
+    [ -e "$f" ] || break
+
+    if ! wifi_qr_parse_token "$f"; then
+      continue
+    fi
+
+    ssid_safe="$WIFI_QR_TOKEN_SSID_SAFE"
+
+    if [ -z "$deleted_list" ]; then
+      deleted_list="  '$ssid_safe'"
+    else
+      deleted_list="$deleted_list
+  '$ssid_safe'"
+    fi
+
+    rm -f "$f"
+    deleted_main=1
+    deleted_count=$((deleted_count+1))
+  done
+
+  for f in "$outdir"/id*_*.svg.tmp; do
+    [ -e "$f" ] || break
+    rm -f "$f"
+    deleted_tmp=1
+  done
+
+  if [ "$deleted_main" -eq 1 ]; then
+    if [ "$deleted_count" -eq 1 ]; then
+      echo "wi-fi-qr-cli: removed Wi-Fi QR code:"
+    else
+      echo "wi-fi-qr-cli: removed Wi-Fi QR codes:"
+    fi
+    printf '%s\n' "$deleted_list"
+  fi
+
+  if [ "$deleted_main" -eq 0 ] && [ "$deleted_tmp" -eq 0 ]; then
+    echo "wi-fi-qr-cli: no Wi-Fi QR codes to remove."
+  elif [ "$deleted_main" -eq 0 ] && [ "$deleted_tmp" -eq 1 ]; then
+    echo "wi-fi-qr-cli: removed temporary files only."
+  elif [ "$deleted_main" -eq 1 ] && [ "$deleted_tmp" -eq 1 ]; then
+    echo "wi-fi-qr-cli: also removed temporary files."
+  fi
+
+  exit 0
+fi
+
+if [ "$cmd" = "--gen" ]; then
+  if [ ! -d "$outdir" ]; then
+    mkdir -p "$outdir" || {
+      echo "wi-fi-qr-cli: cannot create output directory '$outdir'." >&2
+      exit 1
+    }
+  fi
+
+  # An unreadable UCI package is an error, not an empty configuration. Keep a
+  # previously published set intact so a transient UCI failure cannot erase it.
+  if ! uci -q show wireless >/dev/null 2>&1; then
+    echo "wi-fi-qr-cli: unable to read the wireless UCI configuration; existing Wi-Fi QR codes were left unchanged." >&2
+    exit 1
+  fi
+fi
+
+lan_ip=""
+if command -v uci >/dev/null 2>&1; then
+  lan_ip="$(uci -q get network.lan.ipaddr || :)"
+fi
+
+base_url="$(wifi_qr_http_base_url "$lan_ip")"
+
+wifi_qr_build_groups
+
+if [ "$cmd" = "--gen" ] && [ "$group_count" -eq 0 ]; then
+  published_count=0
+  for f in "$outdir"/id*_*.svg; do
+    [ -e "$f" ] || break
+    published_count=$((published_count+1))
+  done
+
+  rm -f "$outdir"/id*_*.svg 2>/dev/null
+
+  if [ "$published_count" -gt 0 ]; then
+    echo "wi-fi-qr-cli: no supported enabled Wi-Fi networks found; removed existing Wi-Fi QR codes."
+  else
+    echo "wi-fi-qr-cli: no supported enabled Wi-Fi networks found."
+  fi
+  exit 0
+fi
+
+list_count=0
+if [ "$cmd" = "--list" ]; then
+  for f in "$outdir"/id*_*.svg; do
+    [ -e "$f" ] || break
+
+    if wifi_qr_parse_token "$f"; then
+      list_count=$((list_count+1))
+    fi
+  done
+fi
+
+if [ "$cmd" = "--list" ] && [ "$list_count" -eq 0 ]; then
+  echo "wi-fi-qr-cli: no Wi-Fi QR codes found."
+  exit 0
+fi
+
+if [ "$cmd" = "--gen" ]; then
+  generated_count=0
+  generation_failed=0
+
+  # Generate a complete set in isolation. Existing SVGs remain untouched until
+  # every new QR has been created successfully.
+  stage_dir="$(mktemp -d "$outdir/.wi-fi-qr-stage.XXXXXX")" || {
+    echo "wi-fi-qr-cli: cannot create a staging directory in '$outdir'." >&2
+    exit 1
+  }
+
+  g=1
+  while [ "$g" -le "$group_count" ]; do
+    ssid="$(get_var "group_ssid_$g")"
+    key="$(get_var "group_key_$g")"
+    enc="$(get_var "group_enc_$g")"
+    hidden="$(get_var "group_hidden_$g")"
+    bands="$(get_var "group_bands_$g")"
+
+    band_label="$(build_band_label "$bands")"
+
+    if ! token="$(wifi_qr_group_token "$g")"; then
+      echo "wi-fi-qr-cli: failed to determine the Wi-Fi QR filename for '$ssid'." >&2
+      generation_failed=1
+      g=$((g+1))
+      continue
+    fi
+
+    staged_file="$stage_dir/$token"
+
+    if gen_wifi_qr_svg "$ssid" "$key" "$enc" "$band_label" "$hidden" > "$staged_file"; then
+      generated_count=$((generated_count+1))
+    else
+      echo "wi-fi-qr-cli: failed to generate Wi-Fi QR code for '$ssid'." >&2
+      rm -f "$staged_file"
+      generation_failed=1
+    fi
+
+    g=$((g+1))
+  done
+
+  if [ "$generation_failed" -ne 0 ] || [ "$generated_count" -ne "$group_count" ]; then
+    echo "wi-fi-qr-cli: generation aborted; existing Wi-Fi QR codes were left unchanged." >&2
+    exit 1
+  fi
+
+  rm -f "$outdir"/id*_*.svg 2>/dev/null
+
+  for staged_file in "$stage_dir"/id*_*.svg; do
+    [ -e "$staged_file" ] || break
+    mv "$staged_file" "$outdir/${staged_file##*/}"
+  done
+
+  rmdir "$stage_dir" 2>/dev/null || :
+  stage_dir=""
+fi
+
+# --gen reports current UCI groups; --list reports valid SVGs already on disk.
+if [ "$cmd" = "--gen" ]; then
+  if [ "${generated_count:-0}" -eq 0 ]; then
+    exit 1
+  fi
+
+  if [ "$generated_count" -eq 1 ]; then
+    echo "wi-fi-qr-cli: generated Wi-Fi QR code:"
+  else
+    echo "wi-fi-qr-cli: generated Wi-Fi QR codes:"
+  fi
+elif [ "$cmd" = "--list" ]; then
+  if [ "$list_count" -eq 1 ]; then
+    echo "wi-fi-qr-cli: existing Wi-Fi QR code:"
+  else
+    echo "wi-fi-qr-cli: existing Wi-Fi QR codes:"
+  fi
+fi
+
+print_table_header
+
+if [ "$cmd" = "--gen" ]; then
+  g=1
+  while [ "$g" -le "$group_count" ]; do
+    ssid="$(get_var "group_ssid_$g")"
+    bands="$(get_var "group_bands_$g")"
+    band_label="$(build_band_label "$bands")"
+    enc="$(get_var "group_enc_$g")"
+    enc_type="$(wifi_qr_auth_type "$enc")"
+
+    if token="$(wifi_qr_group_token "$g")"; then
+      outfile="$outdir/$token"
+
+      if [ -f "$outfile" ]; then
+        if [ -n "$base_url" ]; then
+          printf '%-32s %-16s %-10s %-48s %s\n' \
+            "$ssid" "$band_label" "$enc_type" "$outfile" \
+            "$base_url/wi-fi-qr/$token"
+        else
+          printf '%-32s %-16s %-10s %-48s\n' \
+            "$ssid" "$band_label" "$enc_type" "$outfile"
+        fi
+      fi
+    fi
+
+    g=$((g+1))
+  done
+
+else
+  for f in "$outdir"/id*_*.svg; do
+    [ -e "$f" ] || break
+
+    if ! wifi_qr_parse_token "$f"; then
+      continue
+    fi
+
+    basename="$WIFI_QR_TOKEN_BASENAME"
+    token_id="$WIFI_QR_TOKEN_ID"
+    band_tag="$WIFI_QR_TOKEN_BAND_TAG"
+    ssid_safe="$WIFI_QR_TOKEN_SSID_SAFE"
+
+    band_label="$(band_label_from_tag "$band_tag")"
+
+    ssid_display="$ssid_safe"
+    enc_display="-"
+    if [ "$group_count" -gt 0 ]; then
+      g=1
+      while [ "$g" -le "$group_count" ]; do
+        grp_ssid="$(get_var "group_ssid_$g")"
+        grp_rep_idx="$(get_var "group_rep_idx_$g")"
+        if [ "$grp_rep_idx" = "$token_id" ] &&
+           [ -n "$grp_ssid" ] &&
+           [ "$(safe_ssid "$grp_ssid")" = "$ssid_safe" ]; then
+          ssid_display="$grp_ssid"
+          grp_enc="$(get_var "group_enc_$g")"
+          enc_display="$(wifi_qr_auth_type "$grp_enc")"
+          break
+        fi
+        g=$((g+1))
+      done
+    fi
+
+    if [ -n "$base_url" ]; then
+      printf '%-32s %-16s %-10s %-48s %s\n' \
+        "$ssid_display" "$band_label" "$enc_display" "$f" \
+        "$base_url/wi-fi-qr/$basename.svg"
+    else
+      printf '%-32s %-16s %-10s %-48s\n' \
+        "$ssid_display" "$band_label" "$enc_display" "$f"
+    fi
+
+  done
+fi
+
+print_table_footer
+
+exit 0

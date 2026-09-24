@@ -1,0 +1,10 @@
+{
+	"luci-app-wi-fi-qr": {
+		"description": "Grant access to authenticated Wi-Fi QR generation",
+		"read": {
+			"ubus": {
+				"luci.wifi-qr": [ "get_catalog", "get_svg" ]
+			}
+		}
+	}
+}
