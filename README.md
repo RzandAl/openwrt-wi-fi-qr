@@ -92,7 +92,6 @@ installing them with `apk add --allow-untrusted`; see
 
 ## Documentation
 
-- [Release history](CHANGELOG.md)
 - [Build, installation, verification, and removal](docs/INSTALLATION.md)
 - [CLI and LuCI usage](docs/USAGE.md)
 - [Security model](docs/SECURITY.md)
