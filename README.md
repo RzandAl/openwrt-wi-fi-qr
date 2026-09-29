@@ -97,7 +97,7 @@ installing them with `apk add --allow-untrusted`; see
 - [CLI and LuCI usage](docs/USAGE.md)
 - [Security model](docs/SECURITY.md)
 
-## Tests
+## Tests and validation
 
 Run the complete repository test suite from the project root:
 
@@ -112,10 +112,13 @@ streams and filename collisions, SVG escaping, APK maintainer hooks, package
 layout, committed LuCI catalog behavior, native integration, RPC validation,
 and built-in QR fallback.
 
+Runtime package and LuCI behavior were also validated on the devices listed in
+[Compatibility](#compatibility).
+
 ## Maintainers
 
-Maintained by [AmleyID](https://github.com/AmleyID) and developed and tested
-in collaboration with [RazisID12](https://github.com/RazisID12).
+Developed and tested together by [AmleyID](https://github.com/AmleyID) and
+[RazisID12](https://github.com/RazisID12).
 
 ## License
 
