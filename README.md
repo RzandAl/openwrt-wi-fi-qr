@@ -45,7 +45,8 @@ package Makefiles, so version `1.0.0` with `PKG_RELEASE:=1` produces
 | --- | --- |
 | Target | OpenWrt 25.12.5 with APK |
 | Build | Official OpenWrt 25.12.5 SDK for `ramips/mt7621` |
-| Runtime hardware | Xiaomi Mi Router 3G |
+| Runtime — Xiaomi Mi Router 3G | OpenWrt 25.12.2 and 25.12.5 (`ramips/mt7621`) |
+| Runtime — Cudy WR3000S v1 | OpenWrt 25.12.5 (`mediatek/filogic`) |
 | APK lifecycle | Fresh install, upgrade, removal, and reinstall |
 | LuCI lifecycle | RPC registration, footer update, UI fallback, and cleanup |
 
