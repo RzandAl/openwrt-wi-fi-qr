@@ -50,8 +50,9 @@ package Makefiles, so version `1.0.0` with `PKG_RELEASE:=1` produces
 | APK lifecycle | Fresh install, upgrade, removal, and reinstall |
 | LuCI lifecycle | RPC registration, footer update, UI fallback, and cleanup |
 
-The current release is made for OpenWrt 25.12.5. Other releases are outside
-the documented compatibility target.
+The current release targets OpenWrt 25.12.5. OpenWrt 25.12.2 is listed only as
+a verified runtime environment; other releases are outside the documented
+compatibility scope.
 
 ## Quick use
 
